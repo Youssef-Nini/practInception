@@ -18,8 +18,6 @@ COPY conf/www.conf /etc/php/8.2/fpm/pool.d/www.conf
 COPY tools/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
-WORKDIR /var/www/html
-
 EXPOSE 9000
 
 ENTRYPOINT ["/entrypoint.sh"]
