@@ -25,7 +25,8 @@ if ! wp core is-installed --allow-root &>/dev/null; then
 	wp core install \
 		--url="${DOMAIN_NAME}" \
 		--title="${WORDPRESS_TITLE}" \
-		--admin_user="${WP_ADMIN_PASSWORD}" \
+        --admin_user="${WP_ADMIN_USER}" \
+        --admin_password="${WP_ADMIN_PASSWORD}" \
 		--admin_email="${WP_ADMIN_EMAIL}" \
 		--skip-email
 		--allow-root
