@@ -1,13 +1,14 @@
 
-
 DATA_PATH = /home/ynini/data
 COMPOSE = docker compose -f ./srcs/docker-compose.yml
 
-
 all:
-	sudo mkdir -p ${DATA_PATH}/mariadb
-	sudo mkdir -p ${DATA_PATH}/wordpress
-	${COMPOSE} up -d
+	mkdir -p ${DATA_PATH}/mariadb
+	mkdir -p ${DATA_PATH}/wordpress
+	${COMPOSE} up --build -d
+
+down:
+	${COMPOSE} down
 
 clean:
 	${COMPOSE} down --volumes --rmi all
