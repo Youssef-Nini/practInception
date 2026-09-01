@@ -5,8 +5,8 @@ COMPOSE = docker compose -f ./srcs/docker-compose.yml
 
 
 all:
-	mkdir -p ${DATA_PATH}/mariadb
-	mkdir -p ${DATA_PATH}/wordpress
+	sudo mkdir -p ${DATA_PATH}/mariadb
+	sudo mkdir -p ${DATA_PATH}/wordpress
 	${COMPOSE} up -d
 
 clean:
