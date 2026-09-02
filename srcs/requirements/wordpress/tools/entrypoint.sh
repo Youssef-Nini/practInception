@@ -3,6 +3,8 @@
 set -e
 cd /var/www/html
 
+echo "here ====>1"
+
 for i in {1..30}; do
 	if mysqladmin ping -h "mariadb" --silent; then
 		break
@@ -15,7 +17,7 @@ if ! wp core is-installed --allow-root &>/dev/null; then
 		wp core download --allow-root
 	fi
 
-	wp config create \ 
+	wp config create \
 		--dbname="${MYSQL_DATABASE}" \
 		--dbuser="${MYSQL_USER}" \
 		--dbpass="${MYSQL_PASSWORD}" \
@@ -28,16 +30,17 @@ if ! wp core is-installed --allow-root &>/dev/null; then
         --admin_user="${WP_ADMIN_USER}" \
         --admin_password="${WP_ADMIN_PASSWORD}" \
 		--admin_email="${WP_ADMIN_EMAIL}" \
-		--skip-email
+		--skip-email \
 		--allow-root
 
 	wp user create \
 		"${WP_USER}" \
 		"${WP_EMAIL}" \
 		--user_pass="${WP_USER_PASSWORD}" \
-		--role=author
-		--allow-rote
+		--role=author \
+		--allow-root
 fi
-
+echo "here ====>1"
 chown -R www-data:www-data /var/www/html
+
 exec php-fpm8.2 -F

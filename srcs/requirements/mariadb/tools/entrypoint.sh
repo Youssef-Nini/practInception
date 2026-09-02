@@ -1,11 +1,11 @@
 #!/bin/bash
 
-if [ ! -d /var/lib/mysql/mysql ]; then
+if [ ! -d /var/lib/mysql/ ]; then
 	mysql_install_db --user=mysql --datadir=/var/lib/mysql > /dev/null 2>&1
 
 	mysql --datadir=/var/lib/mysql &
 	pid="$!"
-
+	echo "here 1"
 	for i in {1..30}; do
 		if mysqladmin ping >/dev/null 2>&1; then
 			break
@@ -13,6 +13,7 @@ if [ ! -d /var/lib/mysql/mysql ]; then
 		sleep 1
 	done
 
+	echo "here 2"
 	mysql -u root -e "CREATE DATABASE IF NOT EXISTS \`${MYSQL_DATABASE}\`;"
 	mysql -u root -e "CREATE USER IF NOT EXISTS '${MYSQL_USER}'@'%' IDENTIFIED BY '${MYSQL_PASSWORD}';"
 	mysql -u root -e "GRANT ALL PRIVILAGES ON \`${MYSQL_DATABASE}\`.* TO '${MYSQL_USER}'@'%';"
@@ -22,5 +23,6 @@ if [ ! -d /var/lib/mysql/mysql ]; then
 	kill "$pid"
 	wait "$pid"
 fi
+	echo "here 3"
 
 exec mysqld --datadir=/var/lib/mysql
