@@ -12,6 +12,8 @@ for i in {1..30}; do
 	sleep 1
 done
 
+echo "he enter here"
+
 if ! wp core is-installed --allow-root &>/dev/null; then
 	if [ ! -f "index.php" ]; then
 		wp core download --allow-root
@@ -40,7 +42,7 @@ if ! wp core is-installed --allow-root &>/dev/null; then
 		--role=author \
 		--allow-root
 fi
-echo "here ====>1"
+echo "here ====>222"
 chown -R www-data:www-data /var/www/html
 
 exec php-fpm8.2 -F
