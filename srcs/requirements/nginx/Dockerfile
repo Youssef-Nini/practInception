@@ -12,6 +12,4 @@ RUN mkdir -p /etc/nginx/ssl && \
 
 COPY conf/nginx.conf /etc/nginx/nginx.conf
 
-EXPOSE 443
-
 ENTRYPOINT ["nginx", "-g", "daemon off;"]
