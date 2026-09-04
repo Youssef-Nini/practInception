@@ -1,9 +1,7 @@
 #!/bin/bash
-
 set -e
-cd /var/www/html
 
-echo "here ====>1"
+cd /var/www/html
 
 for i in {1..30}; do
 	if mysqladmin ping -h "mariadb" --silent; then
@@ -11,8 +9,6 @@ for i in {1..30}; do
 	fi
 	sleep 1
 done
-
-echo "he enter here"
 
 if ! wp core is-installed --allow-root &>/dev/null; then
 	if [ ! -f "index.php" ]; then
@@ -42,7 +38,7 @@ if ! wp core is-installed --allow-root &>/dev/null; then
 		--role=author \
 		--allow-root
 fi
-echo "here ====>222"
+
 chown -R www-data:www-data /var/www/html
 
 exec php-fpm8.2 -F
