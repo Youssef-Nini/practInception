@@ -19,112 +19,6 @@ fclean: clean
 	docker system prune -a --volumes -f
 
 re: fclean all
-==> srcs/docker-compose.yml <==
-
-services:
-  nginx:
-    build: ./requirements/nginx
-    image:  nginx
-    ports:
-      - "443:443"
-    volumes:
-      - wordpress_data:/var/www/html
-    networks:
-      - inception
-    depends_on:
-      - wordpress
-    restart: unless-stopped
-    env_file:
-      - .env
-
-  wordpress:
-    build: ./requirements/wordpress
-    image: wordpress
-    container_name: wordpress
-    volumes:
-      - wordpress_data:/var/www/html
-    networks:
-      - inception
-    depends_on:
-      - mariadb
-    restart: unless-stopped
-    env_file:
-      - .env
-
-  mariadb:
-    build: ./requirements/mariadb
-    image: mariadb
-    container_name: mariadb
-    volumes:
-      - mariadb_data:/var/lib/mysql
-    networks:
-      - inception
-    restart: unless-stopped
-    env_file:
-      - .env
-
-networks:
-  inception:
-    name: inception
-    driver: bridge
-
-volumes:
-  mariadb_data:
-    driver: local
-    driver_opts:
-      type: none
-      o: bind
-      device: /home/ynini/data/mariadb
-  wordpress_data:
-    driver: local
-    driver_opts:
-      type: none
-      o: bind
-      device: /home/ynini/data/wordpress
-
-==> srcs/requirements/mariadb/conf/50-server.cnf <==
-[mysqld]
-bind-address = 0.0.0.0
-port = 3306
-==> srcs/requirements/mariadb/tools/entrypoint.sh <==
-#!/bin/bash
-set -e
-
-mkdir -p /var/run/mysqld
-chown -R  mysql:mysql /var/run/mysqld
-
-if [ ! -d /var/lib/mysql/$MYSQL_DATABASE ]; then
-	echo "Initializing MariaDB..."
-	mariadb-install-db  --user=mysql --datadir=/var/lib/mysql > /dev/null
-
-	mariadbd --user=mysql --bootstrap << EOF
-FLUSH PRIVILEGES;
-CREATE DATABASE IF NOT EXISTS \`$MYSQL_DATABASE\`;
-CREATE USER IF NOT EXISTS '$MYSQL_USER'@'%' IDENTIFIED BY '$MYSQL_PASSWORD';
-GRANT ALL PRIVILEGES ON \`$MYSQL_DATABASE\`.* TO '$MYSQL_USER'@'%';
-CREATE USER IF NOT EXISTS '$MYSQL_ADMIN_USER'@'%' IDENTIFIED BY '$MYSQL_ADMIN_PASSWORD';
-GRANT ALL PRIVILEGES ON *.* TO '$MYSQL_ADMIN_USER'@'%' WITH GRANT OPTION;
-ALTER USER 'root'@'localhost' IDENTIFIED BY '$MYSQL_ROOT_PASSWORD';
-FLUSH PRIVILEGES;
-EOF
-
-	echo "MariaDB initialized!"
-fi
-
-exec mariadbd -u mysql
-
-==> srcs/requirements/mariadb/Dockerfile <==
-FROM debian:bookworm
-
-RUN apt-get update && apt-get install -y \
-	mariadb-server \
-	&& rm -rf /var/lib/apt/lists/*
-
-COPY conf/50-server.cnf /etc/mysql/mariadb.conf.d/50-server.cnf
-COPY tools/entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
-
-ENTRYPOINT ["/entrypoint.sh"]
 ==> srcs/requirements/nginx/conf/nginx.conf <==
 server {
 	listen 443 ssl;
@@ -163,10 +57,9 @@ RUN mkdir -p /etc/nginx/ssl && \
 	-out    /etc/nginx/ssl/nginx.crt \
 	-subj "/CN=ynini.42.fr"
 
-COPY conf/nginx.conf /etc/nginx/nginx.conf
+COPY conf/nginx.conf /etc/nginx/conf.d/default.conf
 
 ENTRYPOINT ["nginx", "-g", "daemon off;"]
-
 ==> srcs/requirements/wordpress/tools/entrypoint.sh <==
 #!/bin/bash
 set -e
@@ -229,6 +122,52 @@ RUN curl -O https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli
 RUN mkdir -p /var/www/html /run/php && \
 	chown -R www-data:www-data /var/www/html
 
+RUN sed -i 's|^listen = .*|listen = 0.0.0.0:9000|' \
+    /etc/php/8.2/fpm/pool.d/www.conf
+
+COPY tools/entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+ENTRYPOINT ["/entrypoint.sh"]
+==> srcs/requirements/mariadb/tools/entrypoint.sh <==
+#!/bin/bash
+set -e
+
+mkdir -p /var/run/mysqld
+chown -R  mysql:mysql /var/run/mysqld
+
+if [ ! -d /var/lib/mysql/$MYSQL_DATABASE ]; then
+	echo "Initializing MariaDB..."
+	mariadb-install-db  --user=mysql --datadir=/var/lib/mysql > /dev/null
+
+	mariadbd --user=mysql --bootstrap << EOF
+FLUSH PRIVILEGES;
+CREATE DATABASE IF NOT EXISTS \`$MYSQL_DATABASE\`;
+CREATE USER IF NOT EXISTS '$MYSQL_USER'@'%' IDENTIFIED BY '$MYSQL_PASSWORD';
+GRANT ALL PRIVILEGES ON \`$MYSQL_DATABASE\`.* TO '$MYSQL_USER'@'%';
+CREATE USER IF NOT EXISTS '$MYSQL_ADMIN_USER'@'%' IDENTIFIED BY '$MYSQL_ADMIN_PASSWORD';
+GRANT ALL PRIVILEGES ON *.* TO '$MYSQL_ADMIN_USER'@'%' WITH GRANT OPTION;
+ALTER USER 'root'@'localhost' IDENTIFIED BY '$MYSQL_ROOT_PASSWORD';
+FLUSH PRIVILEGES;
+EOF
+
+	echo "MariaDB initialized!"
+fi
+
+exec mariadbd -u mysql
+
+==> srcs/requirements/mariadb/conf/50-server.cnf <==
+[mysqld]
+bind-address = 0.0.0.0
+port = 3306
+==> srcs/requirements/mariadb/Dockerfile <==
+FROM debian:bookworm
+
+RUN apt-get update && apt-get install -y \
+	mariadb-server \
+	&& rm -rf /var/lib/apt/lists/*
+
+COPY conf/50-server.cnf /etc/mysql/mariadb.conf.d/50-server.cnf
 COPY tools/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
@@ -245,9 +184,72 @@ MYSQL_USER=wpuser
 MYSQL_PASSWORD=wppass
 
 # WORDPRESS SETUP
+WORDPRESS_TITLE=Inception
 WP_ADMIN_USER=ynini
 WP_ADMIN_PASSWORD=adminpass
 WP_ADMIN_EMAIL=ynini@student.42.fr
 WP_USER=editor
 WP_USER_EMAIL=editor@student.42.fr
 WP_USER_PASSWORD=editorpass
+==> srcs/docker-compose.yml <==
+
+services:
+  nginx:
+    build: ./requirements/nginx
+    image:  nginx
+    ports:
+      - "443:443"
+    volumes:
+      - wordpress_data:/var/www/html
+    networks:
+      - inception
+    depends_on:
+      - wordpress
+    restart: unless-stopped
+    env_file:
+      - .env
+
+  wordpress:
+    build: ./requirements/wordpress
+    image: wordpress
+    container_name: wordpress
+    volumes:
+      - wordpress_data:/var/www/html
+    networks:
+      - inception
+    depends_on:
+      - mariadb
+    restart: unless-stopped
+    env_file:
+      - .env
+
+  mariadb:
+    build: ./requirements/mariadb
+    image: mariadb
+    container_name: mariadb
+    volumes:
+      - mariadb_data:/var/lib/mysql
+    networks:
+      - inception
+    restart: unless-stopped
+    env_file:
+      - .env
+
+networks:
+  inception:
+    name: inception
+    driver: bridge
+
+volumes:
+  mariadb_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /home/ynini/data/mariadb
+  wordpress_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /home/ynini/data/wordpress
