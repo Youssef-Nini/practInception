@@ -10,6 +10,6 @@ RUN mkdir -p /etc/nginx/ssl && \
 	-out    /etc/nginx/ssl/nginx.crt \
 	-subj "/CN=ynini.42.fr"
 
-COPY conf/nginx.conf /etc/nginx/nginx.conf
+COPY conf/nginx.conf /etc/nginx/conf.d/default.conf
 
 ENTRYPOINT ["nginx", "-g", "daemon off;"]
