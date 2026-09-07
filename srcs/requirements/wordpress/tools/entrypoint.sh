@@ -11,9 +11,8 @@ for i in {1..30}; do
 done
 
 if ! wp core is-installed --allow-root &>/dev/null; then
-	if [ ! -f "index.php" ]; then
-		wp core download --allow-root
-	fi
+
+	wp core download --allow-root
 
 	wp config create \
 		--dbname=$MYSQL_DATABASE \
@@ -28,7 +27,6 @@ if ! wp core is-installed --allow-root &>/dev/null; then
         --admin_user=$WP_ADMIN_USER \
         --admin_password=$WP_ADMIN_PASSWORD \
 		--admin_email=$WP_ADMIN_EMAIL \
-		--skip-email \
 		--allow-root
 
 	wp user create \
@@ -38,7 +36,5 @@ if ! wp core is-installed --allow-root &>/dev/null; then
 		--role=author \
 		--allow-root
 fi
-
-chown -R www-data:www-data /var/www/html
 
 exec php-fpm8.2 -F
