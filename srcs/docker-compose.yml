@@ -2,7 +2,8 @@
 services:
   nginx:
     build: ./requirements/nginx
-    image:  nginx
+    image: nginx:v1.0
+    container_name: nginx
     ports:
       - "443:443"
     volumes:
@@ -17,7 +18,7 @@ services:
 
   wordpress:
     build: ./requirements/wordpress
-    image: wordpress
+    image: wordpress:v1.0
     container_name: wordpress
     volumes:
       - wordpress_data:/var/www/html
@@ -31,7 +32,7 @@ services:
 
   mariadb:
     build: ./requirements/mariadb
-    image: mariadb
+    image: mariadb:v1.0
     container_name: mariadb
     volumes:
       - mariadb_data:/var/lib/mysql
