@@ -19,6 +19,329 @@ fclean: clean
 	docker system prune -a --volumes -f
 
 re: fclean all
+==> README.md <==
+*This project has been created as part of the 42 curriculum by ynini.*
+
+# Inception
+
+## Description
+
+Inception is a system administration project whose goal is to build a small, self-contained
+web infrastructure entirely with Docker, orchestrated through `docker compose`, and run
+inside a personal virtual machine.
+
+The stack is made of three custom-built services, each running in its own dedicated
+container, with no pre-built (DockerHub) images other than the base `alpine`/`debian`
+image used as the starting point for every Dockerfile:
+
+- **NGINX** — the single entry point of the infrastructure, serving HTTPS only
+  (TLSv1.2 / TLSv1.3) on port 443.
+- **WordPress + php-fpm** — the WordPress application and PHP processor, with no NGINX
+  bundled inside the container.
+- **MariaDB** — the database engine backing WordPress, with no NGINX bundled inside the
+  container.
+
+The three containers communicate with each other over a dedicated Docker network
+(`inception`), and WordPress's data (site files and database) is kept on the host so it
+survives container restarts and rebuilds.
+
+## Instructions
+
+### Requirements
+
+- A Linux virtual machine (or equivalent host) with `docker` and the `docker compose`
+  plugin installed.
+- `make`.
+- A local hosts entry (or DNS record) pointing `ynini.42.fr` to the VM's IP address.
+
+### Build & run
+
+```bash
+make          # creates the host data directories and builds/starts every container
+```
+
+### Stop
+
+```bash
+make down     # stops and removes the containers, keeps images and volumes
+```
+
+### Clean
+
+```bash
+make clean    # stops everything, removes volumes/images, wipes the host data directory
+make fclean   # clean + prunes the whole local Docker system
+make re       # fclean + all
+```
+
+### Access
+
+Once the stack is up, open:
+
+```
+https://ynini.42.fr
+```
+
+in a browser. Port 80 (HTTP) is not exposed — only 443 (HTTPS) is. The certificate is
+self-signed, so the browser will show a security warning the first time; this is expected.
+
+
+## Resources
+
+- [Docker documentation](https://docs.docker.com/)
+- [Docker Compose documentation](https://docs.docker.com/compose/)
+- [WordPress documentation](https://wordpress.org/documentation/)
+- [MariaDB documentation](https://mariadb.com/kb/en/documentation/)
+- [NGINX documentation](https://nginx.org/en/docs/)
+
+**How AI was used:** 
+
+- **Learning & Conceptual Understanding:** Used to ask questions and learn low-level concepts regarding container isolation, network bridging, and volume persistence.
+- **Debugging & Troubleshooting:** Assisted in debugging configuration anomalies within the custom NGINX setups, MariaDB installation scripts, and system behavior.
+- **Documentation Support:** Used AI to improve the clarity, grammar, and structure of the project documentation, including this README.
+
+## Project design choices
+
+### Virtual Machines vs Docker
+
+A virtual machine virtualizes an entire hardware stack and runs a full guest OS on top of
+a hypervisor, which makes it heavier to start, to duplicate, and to scale. A Docker
+container instead shares the host's kernel and only isolates the process, filesystem, and
+network at the OS level, which makes it much lighter and faster to start and to
+reproduce. In this project, the VM provides the outer isolation boundary required by the
+subject, and Docker is used *inside* that VM to isolate and orchestrate each service
+(NGINX, WordPress, MariaDB) independently, without the overhead of one VM per service.
+
+### Secrets vs Environment Variables
+
+Environment variables (here stored in `srcs/.env`) are convenient for non-sensitive
+configuration (domain name, database name, usernames) but they are visible in
+`docker inspect`, in the container's environment, and can end up in logs — which makes
+them a poor fit for actual credentials. Docker secrets, by contrast, are mounted as
+in-memory files inside the container (typically under `/run/secrets/`) and are never
+exposed through `docker inspect` or process listings, which is the recommended way to
+handle passwords and API keys. *(Note: document here which mechanism you actually used
+for passwords — the subject expects secrets or an equivalent locally-ignored file for
+credentials, on top of the `.env` for non-sensitive values.)*
+
+### Docker Network vs Host Network
+
+With `network: host`, a container shares the host's network namespace directly, which
+removes network isolation between the container and the host (and between containers)
+and is explicitly forbidden by the subject. A user-defined Docker network (the
+`inception` bridge network used here) instead gives each container its own network
+namespace, lets containers reach each other by service name through Docker's internal
+DNS, and only exposes the ports that are explicitly published — in this project, only
+NGINX's port 443 is published to the host, while WordPress and MariaDB stay reachable
+only from inside the `inception` network.
+
+### Docker Volumes vs Bind Mounts
+
+A bind mount maps an arbitrary host path directly into the container and is managed
+entirely by the user, with no lifecycle management from Docker. A named volume is
+created and managed by Docker itself (`docker volume create/inspect/rm`), which makes it
+more portable, easier to back up, and safer to reuse across container rebuilds — this is
+why the subject requires named volumes rather than bind mounts for the WordPress
+database and website files. In this project, `mariadb_data` and `wordpress_data` are
+declared as named volumes whose data is stored under `/home/ynini/data` on the host.
+==> DEV_DOC.md <==
+# Developer Documentation — Inception
+
+This document describes how to set up, build, and work on the Inception project from a
+developer's perspective.
+
+## 1. Prerequisites
+
+- A Linux virtual machine with:
+  - `docker` and the `docker compose` plugin installed.
+  - `make`.
+- A hosts entry (or DNS record) resolving `ynini.42.fr` to the VM's own IP address, so
+  the NGINX container can be reached by that domain name.
+
+## 2. Repository layout
+
+```
+.
+├── Makefile
+└── srcs
+    ├── docker-compose.yml
+    ├── .env                      # not committed — see below
+    └── requirements
+        ├── nginx
+        │   ├── Dockerfile
+        │   └── conf/nginx.conf
+        ├── wordpress
+        │   ├── Dockerfile
+        │   └── tools/entrypoint.sh
+        └── mariadb
+            ├── Dockerfile
+            ├── conf/50-server.cnf
+            └── tools/entrypoint.sh
+```
+
+## 3. Setting up the environment from scratch
+
+1. Clone the repository.
+2. Create the `srcs/.env` file (never commit this file — add it to `.gitignore`). At
+   minimum it should define:
+   ```
+   DOMAIN_NAME=ynini.42.fr
+   MYSQL_DATABASE=...
+   MYSQL_USER=...
+   MYSQL_PASSWORD=...
+   MYSQL_ROOT_PASSWORD=...
+   WORDPRESS_DB_HOST=mariadb
+   WORDPRESS_ADMIN_USER=...
+   WORDPRESS_ADMIN_PASSWORD=...
+   WORDPRESS_ADMIN_EMAIL=...
+   WORDPRESS_USER=...
+   WORDPRESS_USER_PASSWORD=...
+   ```
+   *(Adjust the variable names to match what your `entrypoint.sh` scripts actually
+   expect.)*
+3. If you're using Docker secrets instead of (or in addition to) plain environment
+   variables for passwords, place the secret files under a `secrets/` folder at the repo
+   root and reference them in `docker-compose.yml` via the top-level `secrets:` key —
+   this keeps passwords out of `docker inspect` output.
+4. Make sure `srcs/.env` and any secrets files are listed in `.gitignore` before your
+   first commit.
+
+## 4. Building and launching the project
+
+```bash
+make
+```
+
+This target:
+1. Creates the host data directories (`/home/ynini/data/mariadb`,
+   `/home/ynini/data/wordpress`) used by the named volumes.
+2. Runs `docker compose -f ./srcs/docker-compose.yml up --build -d`, which builds the
+   three custom images (`nginx`, `wordpress`, `mariadb`) from their respective
+   Dockerfiles and starts the containers in detached mode.
+
+Other targets:
+
+```bash
+make down     # docker compose down — stops and removes containers, keeps volumes/images
+make clean    # down --volumes --rmi all, then removes the host data directory
+make fclean   # clean + docker system prune -a --volumes -f
+make re       # fclean then all — full rebuild from scratch
+```
+
+## 5. Managing containers and volumes
+
+Useful `docker compose` / `docker` commands (run from the repo root, or add
+`-f ./srcs/docker-compose.yml` if not already using the Makefile):
+
+```bash
+docker compose -f srcs/docker-compose.yml ps        # list container status
+docker compose -f srcs/docker-compose.yml logs -f   # follow logs of all services
+docker compose -f srcs/docker-compose.yml logs -f nginx   # logs of one service
+docker exec -it wordpress sh                        # shell into a running container
+docker network ls                                   # confirm the `inception` network exists
+docker volume ls                                    # list volumes
+docker volume inspect srcs_mariadb_data             # inspect a volume's mountpoint
+```
+
+## 6. Data storage and persistence
+
+- `mariadb_data` and `wordpress_data` are declared as named volumes in
+  `docker-compose.yml`.
+- Both are backed by host paths under `/home/ynini/data` (`/home/ynini/data/mariadb` and
+  `/home/ynini/data/wordpress`), created by `make` before the stack starts.
+- Because the data lives on the host filesystem rather than inside the container's
+  writable layer, WordPress content and the MariaDB database survive
+  `docker compose down`, container restarts, and even a reboot of the VM — as long as
+  `make clean` (which explicitly deletes the host data directory) is not run.
+==> USER_DOC.md <==
+# User Documentation — Inception
+
+This document explains, in simple terms, how to use the Inception stack as an end user
+or administrator. No development knowledge is required to follow it.
+
+## 1. What the stack provides
+
+The project runs three services together:
+
+| Service   | What it does                                                    |
+|-----------|-------------------------------------------------------------------|
+| NGINX     | The only door into the infrastructure. Serves the site over HTTPS (port 443). |
+| WordPress | The website and blog engine (with php-fpm), running behind NGINX. |
+| MariaDB   | The database that stores all of WordPress's content and users.   |
+
+You never talk to WordPress or MariaDB directly — everything goes through NGINX.
+
+## 2. Starting and stopping the project
+
+From the root of the repository:
+
+```bash
+make        # builds the images (if needed) and starts all three containers
+```
+
+To check that everything is running:
+
+```bash
+docker ps
+```
+
+You should see three containers: `nginx`, `wordpress`, and `mariadb`, all with a status
+of `Up`.
+
+To stop the project (without deleting your data):
+
+```bash
+make down
+```
+
+To start it again later:
+
+```bash
+make
+```
+
+## 3. Accessing the website and the administration panel
+
+- **Website:** open `https://ynini.42.fr` in your browser.
+- **Admin panel:** open `https://ynini.42.fr/wp-admin` and log in with a WordPress
+  account.
+
+Two things to know beforehand:
+
+- Only HTTPS (port 443) works. Trying `http://ynini.42.fr` (port 80) will fail — this is
+  intentional, NGINX is the only entry point and only listens on 443.
+- The certificate is self-signed, so your browser will show a "not secure" / certificate
+  warning the first time. This is expected for this project; you can safely proceed.
+
+There are two WordPress accounts set up:
+
+- A regular/editor account, for publishing and editing content.
+- An administrator account, whose username deliberately does **not** contain
+  "admin"/"administrator" (as required by the subject).
+
+## 4. Locating and managing credentials
+
+- Non-sensitive configuration (domain name, database name, usernames) lives in
+  `srcs/.env` at the root of the `srcs` folder.
+- Sensitive values (passwords) should not be readable in the Git history or in the
+  Dockerfiles. *(If you're using Docker secrets, list the secret files and their location
+  here, e.g. `secrets/db_password.txt`, `secrets/db_root_password.txt`,
+  `secrets/credentials.txt`. If you're only using an `.env` file, note that here instead
+  and make sure it's excluded from Git via `.gitignore`.)*
+- Never commit the `.env` file (or any secrets file) to Git — it must be excluded via
+  `.gitignore` and shared out of band with anyone who needs to run the project.
+
+## 5. Checking that the services are running correctly
+
+- `docker ps` — confirms all three containers are `Up` and not restarting in a loop.
+- `docker compose -f srcs/docker-compose.yml logs -f` — tails the logs of all services if
+  something looks wrong.
+- Opening `https://ynini.42.fr` and seeing the WordPress site (not the WordPress
+  installation wizard) confirms WordPress and MariaDB are correctly linked.
+- Logging into `/wp-admin` and successfully editing a page confirms the database
+  connection and file persistence are both working.
+- If you reboot the host machine and run `make` again, your previous WordPress content
+  should still be there — this confirms the volumes are persisting data correctly.
 ==> srcs/requirements/nginx/conf/nginx.conf <==
 server {
 	listen 443 ssl;
@@ -30,7 +353,7 @@ server {
 	ssl_protocols			TLSv1.2 TLSv1.3;
 
 	root	/var/www/html;
-	index	index.php index.html;
+	index	index.php;
 
 	location / {
 		try_files $uri $uri/ =404;
@@ -59,7 +382,7 @@ RUN mkdir -p /etc/nginx/ssl && \
 
 COPY conf/nginx.conf /etc/nginx/conf.d/default.conf
 
-ENTRYPOINT ["nginx", "-g", "daemon off;"]
+ENTRYPOINT ["nginx", "-g", "daemon off;"]																																																																																																																																																																						
 ==> srcs/requirements/wordpress/tools/entrypoint.sh <==
 #!/bin/bash
 set -e
@@ -74,9 +397,8 @@ for i in {1..30}; do
 done
 
 if ! wp core is-installed --allow-root &>/dev/null; then
-	if [ ! -f "index.php" ]; then
-		wp core download --allow-root
-	fi
+
+	wp core download --allow-root
 
 	wp config create \
 		--dbname=$MYSQL_DATABASE \
@@ -91,7 +413,6 @@ if ! wp core is-installed --allow-root &>/dev/null; then
         --admin_user=$WP_ADMIN_USER \
         --admin_password=$WP_ADMIN_PASSWORD \
 		--admin_email=$WP_ADMIN_EMAIL \
-		--skip-email \
 		--allow-root
 
 	wp user create \
@@ -101,8 +422,6 @@ if ! wp core is-installed --allow-root &>/dev/null; then
 		--role=author \
 		--allow-root
 fi
-
-chown -R www-data:www-data /var/www/html
 
 exec php-fpm8.2 -F
 ==> srcs/requirements/wordpress/Dockerfile <==
@@ -119,8 +438,7 @@ RUN curl -O https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli
 	chmod +x wp-cli.phar && \
 	mv wp-cli.phar /usr/local/bin/wp
 
-RUN mkdir -p /var/www/html /run/php && \
-	chown -R www-data:www-data /var/www/html
+RUN mkdir -p /var/www/html
 
 RUN sed -i 's|^listen = .*|listen = 0.0.0.0:9000|' \
     /etc/php/8.2/fpm/pool.d/www.conf
@@ -196,7 +514,8 @@ WP_USER_PASSWORD=editorpass
 services:
   nginx:
     build: ./requirements/nginx
-    image:  nginx
+    image: nginx:v1.0
+    container_name: nginx
     ports:
       - "443:443"
     volumes:
@@ -205,13 +524,13 @@ services:
       - inception
     depends_on:
       - wordpress
-    restart: unless-stopped
+    restart: on-failure
     env_file:
       - .env
 
   wordpress:
     build: ./requirements/wordpress
-    image: wordpress
+    image: wordpress:v1.0
     container_name: wordpress
     volumes:
       - wordpress_data:/var/www/html
@@ -219,19 +538,19 @@ services:
       - inception
     depends_on:
       - mariadb
-    restart: unless-stopped
+    restart: on-failure
     env_file:
       - .env
 
   mariadb:
     build: ./requirements/mariadb
-    image: mariadb
+    image: mariadb:v1.0
     container_name: mariadb
     volumes:
       - mariadb_data:/var/lib/mysql
     networks:
       - inception
-    restart: unless-stopped
+    restart: on-failure
     env_file:
       - .env
 

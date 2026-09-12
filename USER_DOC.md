@@ -65,15 +65,7 @@ There are two WordPress accounts set up:
 
 ## 4. Locating and managing credentials
 
-- Non-sensitive configuration (domain name, database name, usernames) lives in
-  `srcs/.env` at the root of the `srcs` folder.
-- Sensitive values (passwords) should not be readable in the Git history or in the
-  Dockerfiles. *(If you're using Docker secrets, list the secret files and their location
-  here, e.g. `secrets/db_password.txt`, `secrets/db_root_password.txt`,
-  `secrets/credentials.txt`. If you're only using an `.env` file, note that here instead
-  and make sure it's excluded from Git via `.gitignore`.)*
-- Never commit the `.env` file (or any secrets file) to Git — it must be excluded via
-  `.gitignore` and shared out of band with anyone who needs to run the project.
+- All environment variables, including passwords, are stored in a local srcs/.env file. This file is excluded from Git via .gitignore and is not committed. Docker secrets are not used in this project.
 
 ## 5. Checking that the services are running correctly
 

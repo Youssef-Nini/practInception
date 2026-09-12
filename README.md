@@ -97,10 +97,9 @@ configuration (domain name, database name, usernames) but they are visible in
 `docker inspect`, in the container's environment, and can end up in logs — which makes
 them a poor fit for actual credentials. Docker secrets, by contrast, are mounted as
 in-memory files inside the container (typically under `/run/secrets/`) and are never
-exposed through `docker inspect` or process listings, which is the recommended way to
-handle passwords and API keys. *(Note: document here which mechanism you actually used
-for passwords — the subject expects secrets or an equivalent locally-ignored file for
-credentials, on top of the `.env` for non-sensitive values.)*
+exposed through `docker inspect` or process listings. All environment variables, including passwords, 
+are stored in a local srcs/.env file. This file is excluded from Git via .gitignore and is not committed. 
+Docker secrets are not used in this project.
 
 ### Docker Network vs Host Network
 
